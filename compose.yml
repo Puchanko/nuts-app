@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:17.10
+    container_name: nuts-app-postgres
+    environment:
+      POSTGRES_DB: nuts_app
+      POSTGRES_USER: nuts_app
+      POSTGRES_PASSWORD: local_password
+      TZ: Asia/Tokyo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U nuts_app -d nuts_app
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: nuts-app
+
+  thymeleaf:
+    cache: false
+
+logging:
+  level:
+    root: INFO
+    "[jp.wits.dev]": DEBUG
+
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{36} - %msg%n"
+
+mybatis:
+  mapper-locations: classpath:/mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+server:
+  port: 8080
