@@ -4,9 +4,9 @@ INSERT INTO users (
     display_name
 )
 VALUES (
-    'admin@example.com',
+    'user@example.com',
     '{bcrypt}$2a$10$ku4OW00cjuwDaTypfFh9UepU8dD6IaR9bllZyy2jZPzw3JCVRdNVO',
-    '管理者ユーザー'
+    '一般ユーザー'
 );
 
 INSERT INTO user_roles (
@@ -18,5 +18,5 @@ SELECT
     r.id
 FROM users AS u
 CROSS JOIN roles AS r
-WHERE u.email = 'admin@example.com'
-  AND r.role_code IN ('USER', 'ADMIN');
+WHERE u.email = 'user@example.com'
+  AND r.role_code = 'USER';

@@ -11,4 +11,8 @@ import jp.wits.dev.model.entity.User;
 public interface UserMapper {
 	
 	Optional<User> findByEmail(@Param("email") String email);
+	
+	boolean existsByEmail(String email);
+	
+	int insert(User user);
 }
