@@ -37,6 +37,11 @@ dependencies {
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
+	// Flyway
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+    // Database Rider for DBUnit
+    //testImplementation 'com.github.database-rider:rider-junit5:1.44.0'
 }
 
 tasks.named('test') {
