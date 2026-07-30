@@ -5,9 +5,7 @@ on:
     branches:
       - main
 
-permissions:
-  id-token: write
-  contents: read
+permissions: {}
 
 env:
   JAVA_VERSION: "21"
@@ -18,10 +16,13 @@ jobs:
   build-and-test:
     name: Build and test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
 
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17.10
         env:
           POSTGRES_DB: spring_security_app
           POSTGRES_USER: postgres
@@ -74,17 +75,26 @@ jobs:
         id: jar
         shell: bash
         run: |
-          JAR_FILE=$(find build/libs \
-            -maxdepth 1 \
-            -type f \
-            -name "*.jar" \
-            ! -name "*-plain.jar" \
-            | head -n 1)
-
-          if [ -z "$JAR_FILE" ]; then
+          mapfile -t JAR_FILES < <(
+            find build/libs \
+              -maxdepth 1 \
+              -type f \
+              -name "*.jar" \
+              ! -name "*-plain.jar"
+          )
+          
+          if [ "${#JAR_FILES[@]}" -eq 0 ]; then
             echo "Executable JAR was not found."
             exit 1
           fi
+
+          if [ "${#JAR_FILES[@]}" -gt 1 ]; then
+            echo "Multiple executable JARs were found:"
+            printf '%s\n' "${JAR_FILES[@]}"
+            exit 1
+          fi
+
+          JAR_FILE="${JAR_FILES[0]}"
 
           echo "path=${JAR_FILE}" >> "$GITHUB_OUTPUT"
           echo "name=$(basename "$JAR_FILE")" >> "$GITHUB_OUTPUT"
@@ -103,14 +113,12 @@ jobs:
 
   publish-to-s3:
     name: Publish JAR to S3
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    timeout-minutes: 5
     needs:
       - build-and-test
-
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      id-token: write
 
     steps:
       - name: Download JAR
