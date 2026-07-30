@@ -96,52 +96,28 @@ jobs:
           path: ${{ steps.jar.outputs.path }}
           if-no-files-found: error
           retention-days: 7
-          
-      - name: Debug OIDC claims
-        shell: bash
-        run: |
-          set -euo pipefail
-          
-          OIDC_RESPONSE=$(curl --fail --silent --show-error \
-          --header "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-          "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")
-          
-          OIDC_TOKEN=$(echo "${OIDC_RESPONSE}" | jq -r '.value')
-          
-          if [ -z "${OIDC_TOKEN}" ] || [ "${OIDC_TOKEN}" = "null" ]; then
-            echo "OIDC token could not be obtained."
-            exit 1
-          fi
-          
-          OIDC_PAYLOAD=$(echo "${OIDC_TOKEN}" | cut -d '.' -f 2)
-          
-          python3 - "${OIDC_PAYLOAD}" <<'PY'
-          import base64
-          import json
-          import sys
-          
-          payload = sys.argv[1]
-          payload += "=" * (-len(payload) % 4)
-          
-          claims = json.loads(
-            base64.urlsafe_b64decode(payload).decode("utf-8")
-          )
-          
-          selected_claims = {
-            "iss": claims.get("iss"),
-            "aud": claims.get("aud"),
-            "sub": claims.get("sub"),
-            "repository": claims.get("repository"),
-            "repository_owner": claims.get("repository_owner"),
-            "ref": claims.get("ref"),
-            "ref_type": claims.get("ref_type"),
-            "environment": claims.get("environment"),
-            "event_name": claims.get("event_name"),
-            "job_workflow_ref": claims.get("job_workflow_ref"),
-          }
-          
-          print(json.dumps(selected_claims, indent=2, ensure_ascii=False))
-          PY
+
+    outputs:
+      application-version: ${{ steps.project-version.outputs.version }}
+      jar-name: ${{ steps.jar.outputs.name }}
+
+  publish-to-s3:
+    name: Publish JAR to S3
+    needs:
+      - build-and-test
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download JAR
+        uses: actions/download-artifact@v8
+        with:
+          name: spring-security-app-${{ needs.build-and-test.outputs.application-version }}
+          path: artifact
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -149,9 +125,17 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Verify AWS identity
-        run: aws sts get-caller-identity
+      - name: Upload JAR to S3
+        shell: bash
+        run: |
+          VERSION="${{ needs.build-and-test.outputs.application-version }}"
+          JAR_NAME="${{ needs.build-and-test.outputs.jar-name }}"
+          SHORT_SHA="${GITHUB_SHA::12}"
 
-    outputs:
-      application-version: ${{ steps.project-version.outputs.version }}
-      jar-name: ${{ steps.jar.outputs.name }}
+          S3_KEY="spring-security-app/${VERSION}/${SHORT_SHA}/${JAR_NAME}"
+
+          aws s3 cp \
+            "artifact/${JAR_NAME}" \
+            "s3://${S3_BUCKET_NAME}/${S3_KEY}"
+
+          echo "Uploaded to s3://${S3_BUCKET_NAME}/${S3_KEY}"
