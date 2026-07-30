@@ -3,9 +3,9 @@ services:
     image: postgres:17.10
     container_name: nuts-app-postgres
     environment:
-      POSTGRES_DB: nuts_app
-      POSTGRES_USER: nuts_app
-      POSTGRES_PASSWORD: local_password
+      POSTGRES_DB: spring_security_app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       TZ: Asia/Tokyo
     ports:
       - "5432:5432"

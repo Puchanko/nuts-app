@@ -1,0 +1,137 @@
+name: Github Actions Practice CI Workflow
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  JAVA_VERSION: "21"
+  AWS_REGION: ap-northeast-1
+  S3_BUCKET_NAME: nuts-app-artifacts
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: spring_security_app
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d spring_security_app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/spring_security_app
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission to Gradle Wrapper
+        run: chmod +x gradlew
+
+      - name: Build and test
+        run: ./gradlew clean build
+
+      - name: Read application version
+        id: project-version
+        shell: bash
+        run: |
+          VERSION=$(./gradlew properties -q | awk '/^version:/ {print $2}')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Application version: ${VERSION}"
+
+      - name: Find executable JAR
+        id: jar
+        shell: bash
+        run: |
+          JAR_FILE=$(find build/libs \
+            -maxdepth 1 \
+            -type f \
+            -name "*.jar" \
+            ! -name "*-plain.jar" \
+            | head -n 1)
+
+          if [ -z "$JAR_FILE" ]; then
+            echo "Executable JAR was not found."
+            exit 1
+          fi
+
+          echo "path=${JAR_FILE}" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$JAR_FILE")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload JAR to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: spring-security-app-${{ steps.project-version.outputs.version }}
+          path: ${{ steps.jar.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7
+
+    outputs:
+      application-version: ${{ steps.project-version.outputs.version }}
+      jar-name: ${{ steps.jar.outputs.name }}
+
+  publish-to-s3:
+    name: Publish JAR to S3
+    needs:
+      - build-and-test
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download JAR
+        uses: actions/download-artifact@v5
+        with:
+          name: spring-security-app-${{ needs.build-and-test.outputs.application-version }}
+          path: artifact
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload JAR to S3
+        shell: bash
+        run: |
+          VERSION="${{ needs.build-and-test.outputs.application-version }}"
+          JAR_NAME="${{ needs.build-and-test.outputs.jar-name }}"
+          SHORT_SHA="${GITHUB_SHA::12}"
+
+          S3_KEY="spring-security-app/${VERSION}/${SHORT_SHA}/${JAR_NAME}"
+
+          aws s3 cp \
+            "artifact/${JAR_NAME}" \
+            "s3://${S3_BUCKET_NAME}/${S3_KEY}"
+
+          echo "Uploaded to s3://${S3_BUCKET_NAME}/${S3_KEY}"
