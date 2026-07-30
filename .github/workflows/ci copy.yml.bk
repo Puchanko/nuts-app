@@ -110,7 +110,7 @@ jobs:
 
     steps:
       - name: Download JAR
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: spring-security-app-${{ needs.build-and-test.outputs.application-version }}
           path: artifact
