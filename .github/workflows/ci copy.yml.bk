@@ -86,7 +86,7 @@ jobs:
           echo "name=$(basename "$JAR_FILE")" >> "$GITHUB_OUTPUT"
 
       - name: Upload JAR to GitHub Actions
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: spring-security-app-${{ steps.project-version.outputs.version }}
           path: ${{ steps.jar.outputs.path }}

@@ -51,3 +51,46 @@ jobs:
 
       - name: Build and test
         run: ./gradlew clean build
+
+      - name: Read application version
+        id: project-version
+        shell: bash
+        run: |
+          VERSION=$(./gradlew properties -q | awk '/^version:/ {print $2}')
+          if [ -z "$VERSION" ] || [ "$VERSION" = "unspecified" ]; then
+            echo "Application version could not be determined."
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Application version: ${VERSION}"
+
+      - name: Find executable JAR
+        id: jar
+        shell: bash
+        run: |
+          JAR_FILE=$(find build/libs \
+            -maxdepth 1 \
+            -type f \
+            -name "*.jar" \
+            ! -name "*-plain.jar" \
+            | head -n 1)
+
+          if [ -z "$JAR_FILE" ]; then
+            echo "Executable JAR was not found."
+            exit 1
+          fi
+
+          echo "path=${JAR_FILE}" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$JAR_FILE")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload JAR to GitHub Actions
+        uses: actions/upload-artifact@v7
+        with:
+          name: spring-security-app-${{ steps.project-version.outputs.version }}
+          path: ${{ steps.jar.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7
+
+    outputs:
+      application-version: ${{ steps.project-version.outputs.version }}
+      jar-name: ${{ steps.jar.outputs.name }}
